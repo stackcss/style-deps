@@ -3,6 +3,7 @@ var series    = require('async-series')
 var fs        = require('graceful-fs')
 var map       = require('map-async')
 var multipipe = require('multipipe')
+var nodeResolve = require('resolve')
 var resolve   = require('./resolve')
 var flatten   = require('flatten')
 var path      = require('path')
@@ -24,6 +25,9 @@ function styleDeps(root, opts, done) {
   opts.compress = opts.compress || false
   opts.modifiers = opts.modifiers || []
   opts.transforms = opts.transforms || []
+
+  opts.transforms = opts.transforms.map(resolveTransform)
+  opts.modifiers  = opts.modifiers.map(resolveTransform)
 
   loadFile(root, opts, function(err, rules) {
     if (err) return done(err)
@@ -112,9 +116,9 @@ function applyModifiers(filename, opts, rules, done) {
     , rules: rules
   }
 
-  series(modifiers.map(function(tr) {
+  series(modifiers.map(function(mr) {
     return function(next) {
-      tr(filename, stylesheet, function(err, updated) {
+      mr(filename, stylesheet, function(err, updated) {
         if (err) return next(err)
         if (updated) stylesheet = updated
         return next()
@@ -192,4 +196,12 @@ function inlineSourcemap(root, output, done) {
 
     done(null, code)
   })
+}
+
+function resolveTransform(tr) {
+  return typeof tr !== 'string'
+    ? tr
+    : nodeResolve.sync(tr, {
+      basedir: process.cwd()
+    })
 }
