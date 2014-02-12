@@ -1,6 +1,6 @@
 {
   "name": "style-deps",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Traverse the dependency graph of a CSS project using npm-style import statements",
   "main": "index.js",
   "scripts": {
