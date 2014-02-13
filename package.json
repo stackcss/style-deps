@@ -38,6 +38,7 @@
     "xtend": "^2.1.2"
   },
   "devDependencies": {
-    "tape": "^2.4.2"
+    "tape": "^2.4.2",
+    "findup": "~0.1.3"
   }
 }
