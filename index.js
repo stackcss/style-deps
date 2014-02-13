@@ -6,6 +6,7 @@ var multipipe = require('multipipe')
 var nodeResolve = require('resolve')
 var resolve   = require('./resolve')
 var flatten   = require('flatten')
+var findup    = require('findup')
 var path      = require('path')
 var css       = require('css')
 var bl        = require('bl')
@@ -20,36 +21,55 @@ function styleDeps(root, opts, done) {
 
   opts = opts || {}
   opts.loaded = {}
+  opts.packageIndex = opts.packageIndex || {}
+  opts.packageCache = opts.packageCache || {}
 
   opts.debug = opts.debug || false
   opts.compress = opts.compress || false
+
   opts.modifiers = opts.modifiers || []
   opts.transforms = opts.transforms || []
-
   opts.transforms = opts.transforms.map(resolveTransform)
   opts.modifiers  = opts.modifiers.map(resolveTransform)
 
-  loadFile(root, opts, function(err, rules) {
+  opts.keys = opts.keys || {}
+  opts.keys.pkg = opts.keys.pkg || 'sheetify'
+
+  ;['config'
+  , 'modifiers'
+  , 'transforms'
+  ].forEach(function(key) {
+    opts.keys[key] = opts.keys[key] || key
+  })
+
+  loadPackage(root, opts, function(err, pkg, pathname) {
     if (err) return done(err)
 
-    resolveImports(root, opts, rules, function(err, rules) {
+    opts.rootPkg    = pathname
+    opts.rootPkgDir = path.dirname(pathname)
+
+    loadFile(root, opts, function(err, rules) {
       if (err) return done(err)
 
-      var output = css.stringify({
-          type: 'stylesheet'
-        , stylesheet: { rules: rules }
-      }, {
-          sourcemap: opts.debug
-        , compress:  opts.compress
+      resolveImports(root, opts, rules, function(err, rules) {
+        if (err) return done(err)
+
+        var output = css.stringify({
+            type: 'stylesheet'
+          , stylesheet: { rules: rules }
+        }, {
+            sourcemap: opts.debug
+          , compress:  opts.compress
+        })
+
+        if (!opts.debug)
+          return done(null, output)
+
+        inlineSourcemap(root
+          , output
+          , done
+        )
       })
-
-      if (!opts.debug)
-        return done(null, output)
-
-      inlineSourcemap(root
-        , output
-        , done
-      )
     })
   })
 }
@@ -116,21 +136,56 @@ function applyModifiers(filename, opts, rules, done) {
     , rules: rules
   }
 
-  series(modifiers.map(function(mr) {
-    return function(next) {
-      mr(filename, stylesheet, function(err, updated) {
-        if (err) return next(err)
-        if (updated) stylesheet = updated
-        return next()
-      })
-    }
-  }), function(err) {
-    return done(err, stylesheet.rules)
+  loadPackage(filename, opts, function(err, pkg, pathname) {
+    if (err) return done(err)
+
+    modifiers = determineUsedTransforms(pathname
+      , 'modifiers'
+      , pkg
+      , opts
+      , modifiers
+    )
+
+    series(modifiers.map(function(mr) {
+      return function(next) {
+        mr(filename, stylesheet, function(err, updated) {
+          if (err) return next(err)
+          if (updated) stylesheet = updated
+          return next()
+        })
+      }
+    }), function(err) {
+      return done(err, stylesheet.rules)
+    })
   })
+
 }
 
 function loadFile(name, opts, done) {
-  var output = bl(function(err, src) {
+  var transforms = opts.transforms || []
+  var input = fs.createReadStream(name)
+  var output = bl(parseCSSBuffer)
+
+  loadPackage(name, opts, function(err, pkg, pathname) {
+    if (err) return done(err)
+
+    transforms = determineUsedTransforms(pathname
+      , 'transforms'
+      , pkg
+      , opts
+      , transforms
+    )
+
+    if (transforms.length) return input
+      .pipe(transforms.length > 1
+        ? multipipe.apply(null, transforms)
+        : transforms[0])
+      .pipe(output)
+
+    input.pipe(output)
+  })
+
+  function parseCSSBuffer(err, src) {
     if (err) return done(err)
 
     src = src.toString()
@@ -141,22 +196,38 @@ function loadFile(name, opts, done) {
     })
 
     done(null, ast.stylesheet.rules)
+  }
+}
+
+function loadPackage(name, opts, done) {
+  var directory = path.dirname(name)
+
+  if (opts.packageCache[directory])
+    return done(null
+      , opts.packageCache[directory]
+      , opts.packageIndex[directory]
+    )
+
+  findup(name, 'package.json', function(err, parent) {
+    if (err) return done(err)
+
+    parent = path.resolve(parent, 'package.json')
+
+    fs.readFile(parent, 'utf8', function(err, pkg) {
+      if (err) return done(err)
+
+      try {
+        pkg = JSON.parse(pkg)
+      } catch(e) {
+        return done(e)
+      }
+
+      opts.packageIndex[directory] = parent
+      opts.packageCache[directory] = pkg
+
+      done(null, pkg, parent)
+    })
   })
-
-  var transforms = opts.transforms || []
-  var input = fs.createReadStream(name)
-
-  transforms = transforms.map(function(tr) {
-    return tr(name, opts)
-  })
-
-  if (transforms.length) return input
-    .pipe(transforms.length > 1
-      ? multipipe.apply(null, transforms)
-      : transforms[0])
-    .pipe(output)
-
-  return input.pipe(output)
 }
 
 function stripQuotes(string) {
@@ -198,10 +269,40 @@ function inlineSourcemap(root, output, done) {
   })
 }
 
-function resolveTransform(tr) {
+function resolveTransform(tr, dir) {
   return typeof tr !== 'string'
     ? tr
-    : nodeResolve.sync(tr, {
-      basedir: process.cwd()
+    : require(nodeResolve.sync(tr, {
+      basedir: typeof dir !== 'string'
+        ? process.cwd()
+        : dir
+    }))
+}
+
+function determineUsedTransforms(pathname, key, pkg, opts, transforms) {
+  // Handle the "default" case, where
+  // transforms outside of node_modules
+  // are based on the options supplied.
+  if (pathname === opts.rootPkg) {
+    return transforms.map(function(mr) {
+      return resolveTransform(mr, opts.rootPkgDir)
     })
+  }
+
+  // Otherwise, read the required
+  // files from the package.json
+  var pkey = opts.keys.pkg
+  var tkey = opts.keys[key]
+
+  transforms = pkg
+    && pkg[pkey]
+    && pkg[pkey][tkey]
+
+  if (!transforms) return []
+
+  var dirname = path.dirname(pathname)
+
+  return transforms.map(function(tr) {
+    return resolveTransform(tr, dirname)
+  })
 }
