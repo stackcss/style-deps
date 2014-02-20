@@ -65,9 +65,8 @@ function resolveImports(filename, opts, rules, done) {
     map(rules, function(rule, i, next) {
       rule.position.source = filename
 
-      if (rule.type === 'rule') return next(null, rule)
+      if (rule.type === 'rule' || !rule.rules) return next(null, rule)
       if (rule.type === 'import') return handleImport(rule, next)
-      if (!rule.rules) return next(null, [])
 
       // Will resolve recursively, i.e. checking nested @media
       // and @document statements etc.
