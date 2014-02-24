@@ -4,7 +4,7 @@
   "description": "Traverse the dependency graph of a CSS project using npm-style import statements",
   "main": "index.js",
   "scripts": {
-    "test": "say sorry && exit 1"
+    "test": "node test"
   },
   "keywords": [
     "css",

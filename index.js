@@ -29,8 +29,6 @@ function styleDeps(root, opts, done) {
 
   opts.modifiers = opts.modifiers || []
   opts.transforms = opts.transforms || []
-  opts.transforms = opts.transforms.map(resolveTransform)
-  opts.modifiers  = opts.modifiers.map(resolveTransform)
 
   opts.keys = opts.keys || {}
   opts.keys.pkg = opts.keys.pkg || 'sheetify'
@@ -128,9 +126,7 @@ function resolveImports(filename, opts, rules, done) {
 }
 
 function applyModifiers(filename, opts, rules, done) {
-  var modifiers = opts.modifiers
-  if (!modifiers) return done(null, rules)
-
+  var modifiers  = opts.modifiers
   var stylesheet = {
       type: 'stylesheet'
     , rules: rules
@@ -138,6 +134,7 @@ function applyModifiers(filename, opts, rules, done) {
 
   loadPackage(filename, opts, function(err, pkg, pathname) {
     if (err) return done(err)
+    var dirname = path.dirname(pathname)
 
     modifiers = determineUsedTransforms(pathname
       , 'modifiers'
@@ -146,9 +143,19 @@ function applyModifiers(filename, opts, rules, done) {
       , modifiers
     )
 
+    var skey = opts.keys.pkg
+    var ckey = opts.keys.config
+
     series(modifiers.map(function(mr) {
       return function(next) {
-        mr(filename, stylesheet, function(err, updated) {
+        stylesheet.config = pkg
+          && pkg[skey]
+          && pkg[skey][ckey]
+          && pkg[skey][ckey].config
+          && pkg[skey][ckey].config[mr.name]
+          || {}
+
+        mr.make(filename, stylesheet, function(err, updated) {
           if (err) return next(err)
           if (updated) stylesheet = updated
           return next()
@@ -162,19 +169,22 @@ function applyModifiers(filename, opts, rules, done) {
 }
 
 function loadFile(name, opts, done) {
-  var transforms = opts.transforms || []
   var input = fs.createReadStream(name)
   var output = bl(parseCSSBuffer)
 
   loadPackage(name, opts, function(err, pkg, pathname) {
     if (err) return done(err)
 
-    transforms = determineUsedTransforms(pathname
+    var transforms = determineUsedTransforms(pathname
       , 'transforms'
       , pkg
       , opts
       , transforms
-    )
+    ) || []
+
+    transforms = transforms.map(function(tr) {
+      return tr.make
+    })
 
     if (transforms.length) return input
       .pipe(transforms.length > 1
@@ -208,12 +218,12 @@ function loadPackage(name, opts, done) {
       , opts.packageIndex[directory]
     )
 
-  findup(name, 'package.json', function(err, parent) {
+  findup(name, 'package.json', function(err, pkgLocation) {
     if (err) return done(err)
 
-    parent = path.resolve(parent, 'package.json')
+    pkgLocation = path.resolve(pkgLocation, 'package.json')
 
-    fs.readFile(parent, 'utf8', function(err, pkg) {
+    fs.readFile(pkgLocation, 'utf8', function(err, pkg) {
       if (err) return done(err)
 
       try {
@@ -222,10 +232,48 @@ function loadPackage(name, opts, done) {
         return done(e)
       }
 
-      opts.packageIndex[directory] = parent
+      opts.packageIndex[directory] = pkgLocation
       opts.packageCache[directory] = pkg
 
-      done(null, pkg, parent)
+      var skey = opts.keys.pkg
+      var ckey = opts.keys.config
+      var config = pkg[skey]
+                && pkg[skey][ckey]
+
+      if (!config) return done(null, pkg, pkgLocation)
+
+      nodeResolve(config, {
+        basedir: path.dirname(pkgLocation)
+      }, function(err, configFile) {
+        if (err) return done(err)
+
+        var config = require(configFile)
+
+        if (typeof config !== 'function') {
+          return done(new Error(
+              'style-deps config at "'
+            + configFile
+            + '" must export a function'
+          ))
+        }
+
+        var pkgParent = path.resolve(pkgLocation, '../..')
+        findup(pkgParent, 'package.json', function(err, pkgParent) {
+          var parent = opts.packageCache[pkgParent] || {}
+          var output = new Configure
+
+          config.call(output
+            ,  parent
+            && parent[skey]
+            && parent[skey][ckey]
+            || {}
+          )
+
+          pkg[skey][ckey] = output
+
+          return done(null, pkg, pkgLocation)
+        })
+      })
     })
   })
 }
@@ -279,30 +327,42 @@ function resolveTransform(tr, dir) {
     }))
 }
 
-function determineUsedTransforms(pathname, key, pkg, opts, transforms) {
-  // Handle the "default" case, where
-  // transforms outside of node_modules
-  // are based on the options supplied.
-  if (pathname === opts.rootPkg) {
-    return transforms.map(function(mr) {
-      return resolveTransform(mr, opts.rootPkgDir)
-    })
-  }
-
-  // Otherwise, read the required
-  // files from the package.json
+function determineUsedTransforms(pathname, key, pkg, opts, extra) {
+  var dirname = path.dirname(pathname)
   var pkey = opts.keys.pkg
   var tkey = opts.keys[key]
 
-  transforms = pkg
+  // Read the required files from
+  // the closest package.json file
+  var transforms = pkg
     && pkg[pkey]
     && pkg[pkey][tkey]
+    || []
 
-  if (!transforms) return []
-
-  var dirname = path.dirname(pathname)
+  // Include programatically specified transforms
+  // if in the root project directory
+  if (pathname === opts.rootPkg && extra) {
+    transforms = transforms.concat(extra)
+  }
 
   return transforms.map(function(tr) {
-    return resolveTransform(tr, dirname)
+    return {
+        make: resolveTransform(tr, dirname)
+      , name: tr
+    }
   })
+}
+
+function Configure(config) {
+  this.config = config || {}
+}
+
+Configure.prototype.configure = function(name, update) {
+  var config = this.config[name] = this.config[name] || {}
+
+  Object.keys(update).forEach(function(key) {
+    config[key] = update[key]
+  })
+
+  return this
 }
