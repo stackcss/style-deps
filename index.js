@@ -83,9 +83,8 @@ function resolveImports(filename, opts, rules, done) {
     map(rules, function(rule, i, next) {
       rule.position.source = filename
 
-      if (rule.type === 'rule') return next(null, rule)
       if (rule.type === 'import') return handleImport(rule, next)
-      if (!rule.rules) return next(null, [])
+      if (rule.type === 'rule' || !rule.rules) return next(null, rule)
 
       // Will resolve recursively, i.e. checking nested @media
       // and @document statements etc.
@@ -169,6 +168,7 @@ function applyModifiers(filename, opts, rules, done) {
 }
 
 function loadFile(name, opts, done) {
+  var transforms = opts.transforms || []
   var input = fs.createReadStream(name)
   var output = bl(parseCSSBuffer)
 
