@@ -82,3 +82,131 @@ deps(__dirname + '/index.css', {
   console.log(src)
 })
 ```
+
+### Configuration [![experimental](http://hughsk.github.io/stability-badges/dist/experimental.svg)](http://github.com/hughsk/stability-badges) ###
+
+You can customise your package/module's functionality too: for example, you can
+publish a module that applies a variable modifier, and then specify the
+variables to use from a JavaScript file.
+
+``` javascript
+module.exports = function(config, next) {
+  this.configure('sheetify-variables', {
+      red:   '#f00'
+    , blue:  '#00f'
+    , green: '#0f0'
+  })
+
+  next()
+}
+```
+
+If you have some CSS which you want to replace these variables with:
+
+``` css
+/* index.css */
+.warning { color: $red; }
+.neutral { color: $blue; }
+.perfect { color: $green; }
+```
+
+And a matching `package.json` file specified like so:
+
+``` json
+{
+  "name": "my-colored-things",
+  "version": "0.0.1",
+  "style": "./index.css",
+  "dependencies": {
+    "sheetify-variables": "^0.0.1"
+  },
+  "sheetify": {
+      "config": "./config.js"
+    , "modifiers": [
+      "sheetify-variables"
+    ]
+  }
+}
+```
+
+Your file will end up looking something like this when consumed by anybody
+else:
+
+``` css
+/* index.css */
+.warning { color: #f00; }
+.neutral { color: #00f; }
+.perfect { color: #0f0; }
+```
+
+What's helpful though, is that a package's `config` file can itself be
+configured by the parent module without having to expose its internals.
+
+Say you take this `my-colored-things` module and want to use it in another
+project, but you don't like those stark red/green/blue colour choices. Firstly,
+we'll modify `my-colored-things/config.js` to make it configurable from the
+outside:
+
+``` javascript
+module.exports = function(config, next) {
+  this.configure('sheetify-variables', {
+      red:   config.red   || '#f00'
+    , blue:  config.blue  || '#00f'
+    , green: config.green || '#00f'
+  })
+}
+```
+
+Now, in `our-big-project`, we create a `package.json`:
+
+``` json
+{
+  "name": "our-big-project",
+  "version": "0.2.5",
+  "style": "./index.css",
+  "dependencies": {
+    "my-colored-things": "0.0.1"
+  },
+  "sheetify": {
+    "config": "./config.js"
+  }
+}
+```
+
+With a new configuration file:
+
+``` javascript
+module.exports = function(config, next) {
+  this.configure('my-colored-things', {
+      red: '#EB6E6A'
+    , blue: '#5A5B8F'
+    , green: '#9BFF3D'
+  })
+}
+```
+
+This configuration will get passed down to my-colored-things, which will in
+turn decide to pass it onto sheetify-variables without exposing the transform
+logic directly. Your project file could look like this:
+
+``` css
+@import "my-colored-things";
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+```
+
+And you'll end up with a bundle looking like this:
+
+``` css
+.warning { color: #EB6E6A; }
+.neutral { color: #5A5B8F; }
+.perfect { color: #9BFF3D; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+```
