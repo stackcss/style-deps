@@ -1,0 +1,7 @@
+@import "top";
+
+body {
+  color: green;
+}
+
+@import "bottom";

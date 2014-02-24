@@ -4,7 +4,7 @@
   "description": "Traverse the dependency graph of a CSS project using npm-style import statements",
   "main": "index.js",
   "scripts": {
-    "test": "say sorry && exit 1"
+    "test": "node test/import.js"
   },
   "keywords": [
     "css",
@@ -36,5 +36,8 @@
     "bl": "~0.7.0",
     "resolve": "0.6.1",
     "xtend": "^2.1.2"
+  },
+  "devDependencies": {
+    "tape": "^2.4.2"
   }
 }
