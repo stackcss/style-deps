@@ -22,18 +22,11 @@ function styleDeps(root, opts, done) {
   opts.debug = opts.debug || false
   opts.compress = opts.compress || false
 
-  opts.modifiers = opts.modifiers || []
   opts.transforms = opts.transforms || []
 
   opts.keys = opts.keys || {}
   opts.keys.pkg = opts.keys.pkg || 'sheetify'
-
-  ;['config'
-  , 'modifiers'
-  , 'transforms'
-  ].forEach(function(key) {
-    opts.keys[key] = opts.keys[key] || key
-  })
+  opts.keys.transforms = opts.keys.transforms || 'transforms'
 
   // Determine the root package: used to determine
   // if an imported file should use top-level transforms
