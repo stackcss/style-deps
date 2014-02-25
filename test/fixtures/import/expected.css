@@ -4,6 +4,7 @@ header {
 
 body {
   color: green;
+  margin: $margin;
 }
 
 footer {

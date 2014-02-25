@@ -2,6 +2,7 @@
 
 body {
   color: green;
+  margin: $margin;
 }
 
 @import "bottom";
