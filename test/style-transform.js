@@ -11,7 +11,10 @@ var bl = require('bl')
 test('style-transform', function(t) {
   fs.createReadStream(target)
     .pipe(styleTransform(target, [
-      function(file) {
+        // force to read buffer instead of AST
+        function(file) { return through() }
+        // Apply variable transform
+      , function(file) {
         return function(style, next) {
           next(null, variables({
             margin: '20px'
@@ -19,10 +22,9 @@ test('style-transform', function(t) {
         }
       }
     ]))
-    .pipe(bl(function(err, data) {
-      t.ifError(err)
-      var ast = css.parse(data.toString())
+    .once('data', function(ast) {
       var dec = ast.stylesheet.rules[1].declarations[1]
-      t.equal(dec.value, '20px') // transformed successfully
-    }))
+      t.equal(dec.value, '20px', 'transformed successfully')
+      t.end()
+    })
 })
