@@ -26,7 +26,7 @@ function styleDeps(root, opts, done) {
 
   opts.keys = opts.keys || {}
   opts.keys.pkg = opts.keys.pkg || 'sheetify'
-  opts.keys.transforms = opts.keys.transforms || 'transforms'
+  opts.keys.transforms = opts.keys.transforms || 'transform'
 
   // Determine the root package: used to determine
   // if an imported file should use top-level transforms
