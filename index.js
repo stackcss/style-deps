@@ -3,12 +3,15 @@ var inlineImports   = require('./lib/inline-imports')
 var loadPackage     = require('./lib/load-package')
 var loadFile        = require('./lib/load-file')
 
-var path = require('path')
-var css  = require('css')
+var through = require('through2')
+var path    = require('path')
+var css     = require('css')
 
 module.exports = styleDeps
 
 function styleDeps(root, opts, done) {
+  var input = null
+
   if (typeof opts === 'function') {
     done = opts
     opts = {}
@@ -37,8 +40,12 @@ function styleDeps(root, opts, done) {
     opts.rootPkg    = pathname
     opts.rootPkgDir = path.dirname(pathname)
 
-    // Load the root file and retrieve its CSS AST
-    loadFile(root, opts, function(err, rules) {
+    // Load the root file and retrieve its CSS AST.
+    // Use opts.pipe to pipe the contents instead
+    // of using a file.
+    loadFile(input || root, opts, loadedFile)
+
+    function loadedFile(err, rules) {
       if (err) return done(err)
 
       // Kick off the bundling process. Happens recursively,
@@ -62,6 +69,9 @@ function styleDeps(root, opts, done) {
           , done
         )
       })
-    })
+    }
   })
+
+  if (opts.pipe)
+    return input = through()
 }
