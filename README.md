@@ -15,6 +15,13 @@ tree and come back with a single CSS bundle. Accepts for the following options:
 * `compress`: whether to minify the final CSS. Defaults to `false`.
 * `debug`: set to `true` to enable CSS sourcemaps. Defaults to `false`.
 * `transforms`: transform streams for modifying your CSS before it gets parsed.
+* `pipe`: accept streaming input by piping to the stream this function returns.
+
+Returns a text stream which will simply emit the bundle as a single chunk when
+complete. This stream will also emit a `file` event for each file included
+in the bundle so that you can easily plug `style-deps` and its dependants
+into file-watching tools such as
+[watchify](http://github.com/substack/watchify).
 
 ### Text Transforms ###
 

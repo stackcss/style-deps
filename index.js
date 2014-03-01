@@ -3,9 +3,12 @@ var inlineImports   = require('./lib/inline-imports')
 var loadPackage     = require('./lib/load-package')
 var loadFile        = require('./lib/load-file')
 
-var through = require('through2')
-var path    = require('path')
-var css     = require('css')
+var duplexer = require('duplexer2')
+var copy     = require('shallow-copy')
+var through  = require('through2')
+var path     = require('path')
+var css      = require('css')
+var noop     = (function(){})
 
 module.exports = styleDeps
 
@@ -31,11 +34,15 @@ function styleDeps(root, opts, done) {
   opts.keys.pkg = opts.keys.pkg || 'sheetify'
   opts.keys.transforms = opts.keys.transforms || 'transform'
 
+  opts = copy(opts)
+  opts.output = through()
+  done = done || noop
+
   // Determine the root package: used to determine
   // if an imported file should use top-level transforms
   // and modifiers or not.
   loadPackage(root, opts, function(err, pkg, pathname) {
-    if (err) return done(err)
+    if (err) return complete(err)
 
     opts.rootPkg    = pathname
     opts.rootPkgDir = path.dirname(pathname)
@@ -46,12 +53,12 @@ function styleDeps(root, opts, done) {
     loadFile(input || root, opts, loadedFile)
 
     function loadedFile(err, rules) {
-      if (err) return done(err)
+      if (err) return complete(err)
 
       // Kick off the bundling process. Happens recursively,
       // and should return a single AST.
       inlineImports(root, opts, rules, function(err, rules) {
-        if (err) return done(err)
+        if (err) return complete(err)
 
         var output = css.stringify({
             type: 'stylesheet'
@@ -62,16 +69,47 @@ function styleDeps(root, opts, done) {
         })
 
         if (!opts.debug)
-          return done(null, output)
+          return complete(null, output)
 
         inlineSourcemap(root
           , output
-          , done
+          , complete
         )
       })
     }
   })
 
-  if (opts.pipe)
-    return input = through()
+  function complete(err, output) {
+    var out = opts.output
+
+    if (err) {
+      var listeners = out.listeners('error')
+      if (listeners.length) {
+        out.emit('error', err)
+      }
+
+      return done(err)
+    } else {
+      out.push(output)
+      process.nextTick(function() {
+        out.emit('end')
+        done(null, output)
+      })
+    }
+  }
+
+  var bstream = opts.pipe
+    ? duplexer(
+        input = through()
+      , opts.output
+    ) : opts.output
+
+  // bubble up the file event
+  if (bstream !== opts.output) {
+    opts.output.on('file', function(file) {
+      bstream.emit('file', file)
+    })
+  }
+
+  return bstream
 }
