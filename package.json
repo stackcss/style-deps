@@ -41,7 +41,8 @@
     "new-from": "0.0.3",
     "shallow-copy": "0.0.1",
     "duplexer2": "0.0.1",
-    "through2": "~0.4.1"
+    "through2": "~0.4.1",
+    "style-resolve": "0.0.0"
   },
   "devDependencies": {
     "tape": "^2.4.2",
