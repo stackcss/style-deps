@@ -2,10 +2,18 @@
   "name": "style-deps",
   "version": "2.0.1",
   "description": "Traverse the dependency graph of a CSS project using npm-style import statements",
-  "main": "index.js",
   "scripts": {
-    "test": "tape test/*.js"
+    "deps": "dependency-check . && dependency-check . --extra --no-dev",
+    "deps:pkg": "ncu",
+    "deps:update": "ncu -a",
+    "test": "standard && npm run deps && faucet test/*.js",
+    "test:cov": "standard && npm run deps && NODE_ENV=test istanbul cover test/index.js",
+    "format": "standard --format"
   },
+  "bin": {
+    "style-deps": "bin/cli.js"
+  },
+  "repository": "sheetify/style-deps",
   "keywords": [
     "css",
     "parse",
@@ -15,15 +23,7 @@
     "tool",
     "sourcemap"
   ],
-  "author": "require.io <whoa@require.io> (http://require.io/)",
-  "homepage": "https://github.com/requireio/style-deps",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/requireio/style-deps.git"
-  },
-  "bugs": {
-    "url": "https://github.com/requireio/style-deps/issues"
-  },
+  "license": "MIT",
   "dependencies": {
     "ast-pipeline": "~0.1.0",
     "async-series": "0.0.1",
