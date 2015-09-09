@@ -3,13 +3,13 @@ var path = require('path')
 var fs = require('fs')
 var deps = require('../')
 
-test('emits a file event for each file', function(t) {
-  var root   = __dirname + '/fixtures/import/style.css'
-  var top    = path.resolve(path.dirname(root), 'node_modules/top/style.css')
+test('emits a file event for each file', function (t) {
+  var root = __dirname + '/fixtures/import/style.css'
+  var top = path.resolve(path.dirname(root), 'node_modules/top/style.css')
   var bottom = path.resolve(path.dirname(root), 'node_modules/bottom/style.css')
-  var files  = []
+  var files = []
 
-  deps(root, function(err, css) {
+  deps(root, function (err, css) {
     t.ifError(err)
 
     t.equal(files.length, 3, '3 files emitted in total')
@@ -18,20 +18,20 @@ test('emits a file event for each file', function(t) {
     t.notEqual(files.indexOf(bottom), -1, '"bottom" module was emitted')
 
     t.end()
-  }).on('file', function(file) {
+  }).on('file', function (file) {
     files.push(file)
   })
 })
 
-test('works when being piped too', function(t) {
-  var root   = __dirname + '/fixtures/import/style.css'
-  var top    = path.resolve(path.dirname(root), 'node_modules/top/style.css')
+test('works when being piped too', function (t) {
+  var root = __dirname + '/fixtures/import/style.css'
+  var top = path.resolve(path.dirname(root), 'node_modules/top/style.css')
   var bottom = path.resolve(path.dirname(root), 'node_modules/bottom/style.css')
-  var files  = []
+  var files = []
 
   var stream = deps(root, {
     pipe: true
-  }, function(err, css) {
+  }, function (err, css) {
     t.ifError(err)
 
     t.equal(files.length, 3, '3 files emitted in total')
@@ -40,7 +40,7 @@ test('works when being piped too', function(t) {
     t.notEqual(files.indexOf(bottom), -1, '"bottom" module was emitted')
 
     t.end()
-  }).on('file', function(file) {
+  }).on('file', function (file) {
     files.push(file)
   })
 
