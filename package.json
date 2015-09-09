@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "dependency-check": "^2.5.0",
+    "istanbul": "^0.3.19",
     "npm-check-updates": "^2.2.0",
     "rework": "^1.0.1",
     "rework-variables": "^0.0.8",
