@@ -30,26 +30,19 @@ the absolute file path and returns a through stream that modifies the file
 before it's parsed:
 
 ``` javascript
-var deps = require('style-deps')
-var through = require('through')
-var map = require('map-stream')
-var path = require('path')
+const through = require('through2')
+const deps = require('style-deps')
+
+deps(__dirname + '/index.css', { transforms: [ lowerCase ] })
+  .pipe(process.stdout)
 
 // Lower-case all of your project's CSS
-function transform(file) {
-  if (path.extname(file) !== '.CSS') return through()
-
-  return map(function(chunk, next) {
-    next(null, chunk.toString().toLowerCase())
+function lowerCase (file) {
+  return through((chunk, enc, next) => {
+    this.push(chunk.toString().toLowerCase())
+    next()
   })
 }
-
-deps(__dirname + '/index.css', {
-  transforms: [transform]
-}, function(err, src) {
-  if (err) throw err
-  console.log(src)
-})
 ```
 
 ### Source Transforms ###
@@ -72,18 +65,14 @@ Each returned source transform function is passed two arguments:
   AST to use in the next modifier.
 
 ``` javascript
-var shade = require('rework-shade')
-var deps = require('style-deps')
+const shade = require('rework-shade')
+const deps = require('style-deps')
 
-function modifier(file, style, next) {
+deps(__dirname + '/index.css', { transforms: [ modifier ] })
+  .pipe(process.stdout)
+
+function modifier (file, style, next) {
   shade()(style)
   next(null, style)
 }
-
-deps(__dirname + '/index.css', {
-  transforms: [modifier]
-}, function(err, src) {
-  if (err) throw err
-  console.log(src)
-})
 ```
