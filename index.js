@@ -1,18 +1,18 @@
 var inlineSourcemap = require('./lib/inline-sourcemap')
-var inlineImports   = require('./lib/inline-imports')
-var loadPackage     = require('./lib/load-package')
-var loadFile        = require('./lib/load-file')
+var inlineImports = require('./lib/inline-imports')
+var loadPackage = require('./lib/load-package')
+var loadFile = require('./lib/load-file')
 
 var duplexer = require('duplexer2')
-var copy     = require('shallow-copy')
-var through  = require('through2')
-var path     = require('path')
-var css      = require('css')
-var noop     = (function(){})
+var copy = require('shallow-copy')
+var through = require('through2')
+var noop = require('noop2')
+var path = require('path')
+var css = require('css')
 
 module.exports = styleDeps
 
-function styleDeps(root, opts, done) {
+function styleDeps (root, opts, done) {
   var input = null
 
   if (typeof opts === 'function') {
@@ -41,10 +41,10 @@ function styleDeps(root, opts, done) {
   // Determine the root package: used to determine
   // if an imported file should use top-level transforms
   // and modifiers or not.
-  loadPackage(root, opts, function(err, pkg, pathname) {
+  loadPackage(root, opts, function (err, pkg, pathname) {
     if (err) return complete(err)
 
-    opts.rootPkg    = pathname
+    opts.rootPkg = pathname
     opts.rootPkgDir = path.dirname(pathname)
 
     // Load the root file and retrieve its CSS AST.
@@ -52,24 +52,23 @@ function styleDeps(root, opts, done) {
     // of using a file.
     loadFile(input || root, opts, loadedFile)
 
-    function loadedFile(err, rules) {
+    function loadedFile (err, rules) {
       if (err) return complete(err)
 
       // Kick off the bundling process. Happens recursively,
       // and should return a single AST.
-      inlineImports(root, opts, rules, function(err, rules) {
+      inlineImports(root, opts, rules, function (err, rules) {
         if (err) return complete(err)
 
         var output = css.stringify({
-            type: 'stylesheet'
-          , stylesheet: { rules: rules }
+          type: 'stylesheet',
+          stylesheet: { rules: rules }
         }, {
-            sourcemap: opts.debug
-          , compress:  opts.compress
+          sourcemap: opts.debug,
+          compress: opts.compress
         })
 
-        if (!opts.debug)
-          return complete(null, output)
+        if (!opts.debug) return complete(null, output)
 
         inlineSourcemap(root
           , output
@@ -79,7 +78,7 @@ function styleDeps(root, opts, done) {
     }
   })
 
-  function complete(err, output) {
+  function complete (err, output) {
     var out = opts.output
 
     if (err) {
@@ -91,7 +90,7 @@ function styleDeps(root, opts, done) {
       return done(err)
     } else {
       out.push(output)
-      process.nextTick(function() {
+      process.nextTick(function () {
         out.emit('end')
         done(null, output)
       })
@@ -100,13 +99,13 @@ function styleDeps(root, opts, done) {
 
   var bstream = opts.pipe
     ? duplexer(
-        input = through()
+      input = through()
       , opts.output
     ) : opts.output
 
   // bubble up the file event
   if (bstream !== opts.output) {
-    opts.output.on('file', function(file) {
+    opts.output.on('file', function (file) {
       bstream.emit('file', file)
     })
   }
